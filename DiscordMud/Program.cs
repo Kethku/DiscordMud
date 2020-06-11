@@ -20,15 +20,31 @@ namespace DiscordMud {
             await client.LoginAsync(TokenType.Bot, token);
             await client.StartAsync();
 
-            await Task.Delay(-1);
+            while (true) {
+
+                var now = DateTime.Now;
+                var midnight = (now - TimeSpan.FromHours(now.Hour)) - TimeSpan.FromMinutes(now.Minute);
+                var fiveAm = midnight + TimeSpan.FromHours(5);
+                if (fiveAm < DateTime.Now) {
+                    fiveAm = fiveAm + TimeSpan.FromDays(1);
+                }
+                var timeTillFive = fiveAm - now;
+
+                Console.WriteLine(timeTillFive);
+
+                await Task.Delay(timeTillFive);
+                await Capitalism.GiveAllowances((IMessageChannel)client.GetChannel(598338172958670862));
+            }
         }
 
-        private static Task MessageRecieved(SocketMessage message) {
-            RemindMe.Handle(message);
-            CustomEmoji.Handle(message);
-            Dubs.Handle(message);
-            Console.WriteLine(message.Content);
-            return Task.CompletedTask;
+        private static async Task MessageRecieved(SocketMessage message) {
+            var userSocketMessage = message as SocketUserMessage;
+            if (userSocketMessage != null) {
+                CustomEmoji.Handle(userSocketMessage);
+                Dubs.Handle(userSocketMessage);
+                await Capitalism.Handle(userSocketMessage);
+                Console.WriteLine(message.Content);
+            }
         }
 
         private static Task ReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction) {
