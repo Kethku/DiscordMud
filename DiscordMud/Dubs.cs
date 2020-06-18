@@ -54,8 +54,9 @@ namespace DiscordMud {
             }
 
             if (emoji != null) {
-                await message.AddReactionAsync(emoji);
-                await Capitalism.AddDubsToken(((IGuildUser)message.Author).Nickname, rank);
+                if (await Capitalism.AddDubsToken(message.Author.Id, rank)) {
+                    await message.AddReactionAsync(emoji);
+                }
             }
         }
     }

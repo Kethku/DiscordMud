@@ -67,6 +67,7 @@ namespace DiscordMud {
 
         [Help("!challenge: Challenges somebody to a duel.")]
         public async Task<string> Challenge([Author]Member attacker, Member defender, MyCouchStore db) {
+            if (attacker.Id == defender.Id) return "You can't challenge yourself.";
             defender.Challenger = ulong.Parse(attacker.Id);
             await db.StoreAsync(defender);
 
@@ -88,7 +89,7 @@ namespace DiscordMud {
                     result = state.Result;
                 }
 
-                attacker.Challenger = null;
+                defender.Challenger = null;
 
                 defender.Equiped?.HandlePostDuelEffects(defender, attacker, channel, result == Result.Attacker);
                 attacker.Equiped?.HandlePostDuelEffects(attacker, defender, channel, result == Result.Defender);
@@ -226,11 +227,16 @@ namespace DiscordMud {
             }
         }
 
-        public static async Task AddDubsToken(string name, int rank) {
+        public static async Task<bool> AddDubsToken(ulong id, int rank) {
             using (var db = Utils.OpenDatabase(Constants.DATABASE_NAME)) {
-                var member = await db.GetMember(name);
-                member.Wallet.Dubs[rank]++;
-                await db.StoreAsync(member);
+                if (await db.ExistsAsync(id.ToString())) {
+                    var member = await db.GetMember(id.ToString());
+                    member.Wallet.Dubs[rank]++;
+                    await db.StoreAsync(member);
+                    return true;
+                } else {
+                    return false;
+                }
             }
         }
 
