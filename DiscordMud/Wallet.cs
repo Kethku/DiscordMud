@@ -1,18 +1,11 @@
 using System;
-using System.IO;
 using System.Text;
-using System.Linq;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using Discord;
-using Discord.WebSocket;
-using MyCouch;
-using MyCouch.Requests;
 
 namespace DiscordMud {
     public class Wallet {
         public int BBP { get; set; }
-        public Dictionary<int, int> Dubs { get; set;}
+        public Dictionary<int, int> Dubs { get; set; }
 
         public Wallet() {
             BBP = 0;
@@ -46,12 +39,15 @@ namespace DiscordMud {
             var pairs = parts.Pairs();
             foreach ((string amountText, string typeText) in pairs) {
                 if (int.TryParse(amountText, out var tokenAmount)) {
+                    if (tokenAmount < 0) throw new CommandFailedException("You cannot deal in negative amounts...");
                     int rank = Utils.DubsNameToRank(typeText.ToLower().Trim());
                     if (rank == 0) {
                         BBP += tokenAmount;
                     } else {
                         Dubs[rank] = tokenAmount;
                     }
+                } else {
+                    throw new CommandFailedException("Invalid money amount.");
                 }
             }
         }
@@ -80,13 +76,23 @@ namespace DiscordMud {
         }
 
         public override string ToString() {
+            bool any = false;
             var sb = new StringBuilder();
-            sb.Append($"{BBP} BBP ");
+            if (BBP > 0) {
+                sb.Append($"{BBP} BBP ");
+                any = true;
+            }
+            
             for (int i = 3; i <= 9; i++) {
                 var amount = Dubs[i];
                 if (amount > 0) {
-                    sb.Append($"{amount} {Utils.RankToDubsName(i).CapitalizeFirstLetter()}");
+                    sb.Append($"{amount} {Utils.RankToDubsName(i, amount).CapitalizeFirstLetter()} ");
+                    any = true;
                 }
+            }
+
+            if (!any) {
+                sb.Append($"nothing");
             }
             return sb.ToString().Trim();
         }

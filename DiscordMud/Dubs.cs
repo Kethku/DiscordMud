@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
 using Emoji = Discord.Emoji;
@@ -8,7 +9,8 @@ namespace DiscordMud {
     public static class Dubs {
         private static Random random = new Random();
 
-        public static async void Handle(SocketUserMessage message) {
+        public static async Task Handle(SocketUserMessage message) {
+            if (message.Author.Id == 598740888562302977) return;
             ISocketMessageChannel channel = message.Channel;
 
             var id = new int[9];

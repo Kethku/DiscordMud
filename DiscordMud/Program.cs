@@ -23,15 +23,20 @@ namespace DiscordMud {
             await Capitalism.ManageAllowances(client);
         }
 
-        private static Task MessageRecieved(SocketMessage message) {
-            var userSocketMessage = message as SocketUserMessage;
-            if (userSocketMessage != null) {
-                CustomEmoji.Handle(userSocketMessage);
-                Dubs.Handle(userSocketMessage);
-                Capitalism.Handle(userSocketMessage);
-                Console.WriteLine(message.Content);
-            }
-            return Task.CompletedTask;
+        private static async Task MessageRecieved(SocketMessage message) {
+            Task.Run(async () => {
+                var userSocketMessage = message as SocketUserMessage;
+                try {
+                    if (userSocketMessage != null && userSocketMessage.Id != 598740888562302977) {
+                        await CustomEmoji.Handle(userSocketMessage);
+                        await Dubs.Handle(userSocketMessage);
+                        await new Capitalism().Handle(userSocketMessage);
+                    }
+                } catch (Exception exception) {
+                    Console.WriteLine(exception);
+                    Console.WriteLine(exception.StackTrace);
+                }
+            });
         }
 
         private static Task ReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction) {

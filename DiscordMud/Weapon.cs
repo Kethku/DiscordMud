@@ -1,13 +1,9 @@
 using System;
-using System.IO;
 using System.Text;
-using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
-using MyCouch;
-using MyCouch.Requests;
 
 namespace DiscordMud {
     public enum WeaponClass {
@@ -19,7 +15,8 @@ namespace DiscordMud {
     public enum AttackSpeed {
         Slow,
         Medium,
-        Fast
+        Fast,
+        Instant
     }
 
     public enum Modifier {
@@ -28,7 +25,8 @@ namespace DiscordMud {
         Fire,
         Ice,
         Earth,
-        Electric
+        Electric,
+        Silent
     }
 
     public enum Result {
@@ -59,9 +57,9 @@ namespace DiscordMud {
         public const double InefficientFactor = 0.5;
 
         public static readonly Weapon Fists = new Weapon {
-            Name = "fists",
-            Description = "their own two fists",
-            AttackDescriptions = new List<string> {
+            Id = "their own two fists",
+            Description = "Your own two fists... You should probably arm yourself.",
+            AttackVerbs = new List<string> {
                 "upper cuts",
                 "swipes",
                 "jabs",
@@ -73,25 +71,26 @@ namespace DiscordMud {
             Modifier = Modifier.None,
             MaxDamage = 5,
             MinDamage = 1,
-            WiffChance = 0.25
+            WhiffChance = 0.25
         };
 
-        public string Name { get; set; }
+        public string Rev { get; set; }
+        public string Id { get; set; }
         public string Description { get; set; }
-        public List<string> AttackDescriptions { get; set; }
+        public List<string> AttackVerbs { get; set; }
 
         public WeaponClass Class { get; set; }
         public AttackSpeed AttackSpeed { get; set; }
         public Modifier Modifier { get; set; }
         public double MaxDamage { get; set; }
         public double MinDamage { get; set; }
-        public double WiffChance { get; set; }
+        public double WhiffChance { get; set; }
 
         public bool ParticipatesInRound(int round) {
             if (AttackSpeed == AttackSpeed.Fast) return true;
 
             if (round == 1) {
-                return AttackSpeed == AttackSpeed.Medium;
+                return AttackSpeed == AttackSpeed.Medium || AttackSpeed == AttackSpeed.Instant;
             } else if (round == 2) {
                 return AttackSpeed == AttackSpeed.Slow;
             } else if (round == 3) {
@@ -175,9 +174,9 @@ namespace DiscordMud {
                 ModifierDamageFactor(other);
         }
         
-        public string Wiffs(Random random, string name) {
-            if (random.Next(100) <= WiffChance * 100) {
-                return $"{name} wiffs the attack. How embaressing!";
+        public string Whiffs(Random random, string name) {
+            if (random.Next(100) <= WhiffChance * 100) {
+                return $"{name} whiffs the attack. How embarrassing!";
             }
             return null;
         }
@@ -185,14 +184,14 @@ namespace DiscordMud {
         public (string, double) CalculateAttack(string name, int round, Weapon other) {
             if (ParticipatesInRound(round)) {
                 Random random = new Random();
-                string wiffMessage = Wiffs(random, name);
-                if (wiffMessage != null) {
-                    return (wiffMessage, 0.0);
+                string whiffMessage = Whiffs(random, name);
+                if (whiffMessage != null) {
+                    return (whiffMessage, 0.0);
                 } else {
                     double damageFactor = DamageFactor(other);
                     double baseDamage = random.NextDouble() * (MaxDamage - MinDamage) + MinDamage;
                     double damage = baseDamage * damageFactor;
-                    string attackDescription = AttackDescriptions[random.Next(AttackDescriptions.Count)];
+                    string attackDescription = AttackVerbs[random.Next(AttackVerbs.Count)];
                     return ($"{name} {attackDescription} dealing {damage:#.##} damage.", damage);
                 }
             } else {
@@ -206,7 +205,7 @@ namespace DiscordMud {
 
             // Intro
             
-            yield return new DuelEvent($"{attackerName} and {defenderName} line up on the dueling ground.\n{attackerName} is using {attacker.Description}.\n{defenderName} is using {defender.Description}.\nTension fills the air.");
+            yield return new DuelEvent($"{attackerName} and {defenderName} line up on the dueling ground.\n{attackerName} is using {attacker}.\n{defenderName} is using {defender}.\n\nTension fills the air.");
 
             // Round 1
             {
@@ -217,6 +216,8 @@ namespace DiscordMud {
                 (string defenderResult, double defenderDamageDelt) = defender.CalculateAttack(defenderName, 1, attacker);
                 sb.AppendLine(defenderResult);
                 attackerHealth -= defenderDamageDelt;
+                sb.AppendLine();
+
 
                 if (attackerHealth <= 0 && defenderHealth <= 0) {
                     sb.AppendLine("Both contestants break away feeling confident that neither would have won. It is a draw.");
@@ -243,6 +244,7 @@ namespace DiscordMud {
                 (string defenderResult, double defenderDamageDelt) = defender.CalculateAttack(defenderName, 2, attacker);
                 sb.AppendLine(defenderResult);
                 attackerHealth -= defenderDamageDelt;
+                sb.AppendLine();
 
                 if (attackerHealth <= 0 && defenderHealth <= 0) {
                     sb.AppendLine("Both contestants break away feeling confident that neither would have won. It is a draw.");
@@ -269,6 +271,7 @@ namespace DiscordMud {
                 (string defenderResult, double defenderDamageDelt) = defender.CalculateAttack(defenderName, 3, attacker);
                 sb.AppendLine(defenderResult);
                 attackerHealth -= defenderDamageDelt;
+                sb.AppendLine();
 
                 if ((attackerHealth <= 0 && defenderHealth <= 0) || attackerHealth == defenderHealth) {
                     sb.AppendLine("Both contestants break away feeling confident that neither would have won. It is a draw.");
@@ -282,6 +285,87 @@ namespace DiscordMud {
                 }
             }
         }
-    }
 
+        public async Task HandlePostDuelEffects(Member wielder, Member defender, ISocketMessageChannel channel, bool lost) {
+            if (Id == "dagon") {
+                MaxDamage *= 1.1;
+                MinDamage *= 1.1;
+            } else if (Id == "match") {
+                await channel.SendMessageAsync($"The match burns up in {wielder.Id}'s hand.");
+                wielder.Equiped = null;
+            } else if (Id == "#2 pencil") {
+                var random = new Random();
+                if (random.NextDouble() * 100.0 < 30) {
+                    await channel.SendMessageAsync($"The #2 pencil breaks in {wielder.Id}'s hand. The result is a sharper shard of a pencil. pog");
+                    wielder.Equiped =  new Weapon {
+                        Id = "shard of a #2 pencil",
+                        Description = "A slightly more scary part of a #2 pencil. Looks dangerous",
+                        AttackVerbs = new List<string> {
+                            "pokes",
+                            "stabs",
+                            "jabs"
+                        },
+                        Class = WeaponClass.Light,
+                        AttackSpeed = AttackSpeed.Fast,
+                        Modifier = Modifier.None,
+                        MaxDamage = 10,
+                        MinDamage = 5,
+                        WhiffChance = 0.1
+                    };
+                }
+            } else if (Id == "otter pop") {
+                await channel.SendMessageAsync($"The heat of the battle melted the otter pop. Now its a plastic tube with sugar water in it. :(");
+                wielder.Equiped = new Weapon {
+                    Id = "melted otter pop",
+                    Description = "A damp tube with sugar water in it. Eww",
+                    AttackVerbs = new List<string> {
+                        "slaps",
+                        "slushes",
+                        "drips"
+                    },
+                    Class = WeaponClass.Light,
+                    AttackSpeed = AttackSpeed.Medium,
+                    Modifier = Modifier.Water,
+                    MaxDamage = 2,
+                    MinDamage = 1,
+                    WhiffChance = 0.3
+                };
+            } else if (Id == "NFC bamboo stick") {
+                var random = new Random();
+                if (random.NextDouble() * 100.0 < 30) {
+                    await channel.SendMessageAsync($"The bamboo stick breaks snapped in half during the scuffle. The result is a shorter stick with a sharp point. pog");
+                    wielder.Equiped =  new Weapon {
+                        Id = "half of an NFC bamboo stick",
+                        Description = "Chris lost the bet.",
+                        AttackVerbs = new List<string> {
+                            "pokes",
+                            "stabs",
+                            "jabs"
+                        },
+                        Class = WeaponClass.Light,
+                        AttackSpeed = AttackSpeed.Fast,
+                        Modifier = Modifier.None,
+                        MaxDamage = 55,
+                        MinDamage = 45,
+                        WhiffChance = 0.1
+                    };
+                }
+            } else if (Id == "golden gun" && lost) {
+                await channel.SendMessageAsync($"Having defeated {wielder.Id} in battle, {defender.Id} now owns the golden gun.");
+                wielder.Equiped = null;
+                defender.Inventory.Add(this);
+            }
+        }
+
+        public async Task HandleGeneralMessageEffects(SocketUserMessage message) {
+            if (Modifier == Modifier.Silent && !message.Content.StartsWith('!')) {
+                await message.DeleteAsync();
+            }
+        }
+
+        public override string ToString() {
+            return $"{Id.IndefiniteArticle()} {Id}";
+        }
+    }
 }
+
