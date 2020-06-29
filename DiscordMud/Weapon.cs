@@ -57,7 +57,7 @@ namespace DiscordMud {
         public const double InefficientFactor = 0.5;
 
         public static readonly Weapon Fists = new Weapon {
-            Id = "their own two fists",
+            Id = "pair of their own two fists",
             Description = "Your own two fists... You should probably arm yourself.",
             AttackVerbs = new List<string> {
                 "upper cuts",
@@ -192,10 +192,14 @@ namespace DiscordMud {
                     double baseDamage = random.NextDouble() * (MaxDamage - MinDamage) + MinDamage;
                     double damage = baseDamage * damageFactor;
                     string attackDescription = AttackVerbs[random.Next(AttackVerbs.Count)];
-                    return ($"{name} {attackDescription} dealing {damage:#.##} damage.", damage);
+                    return ($"{name} {attackDescription} dealing {Math.Floor(damage * 100)} damage.", damage);
                 }
             } else {
-                return ($"{name} readies their next attack.", 0.0);
+                if (round != 3) {
+                    return ($"{name} readies their next attack.", 0.0);
+                } else {
+                    return ($"{name} is too tired to attack again.", 0.0);
+                }
             }
         }
 
@@ -291,12 +295,12 @@ namespace DiscordMud {
                 MaxDamage *= 1.1;
                 MinDamage *= 1.1;
             } else if (Id == "match") {
-                await channel.SendMessageAsync($"The match burns up in {wielder.Id}'s hand.");
+                await channel.SendMessageAsync($"The match burns up in {wielder}'s hand.");
                 wielder.Equiped = null;
             } else if (Id == "#2 pencil") {
                 var random = new Random();
                 if (random.NextDouble() * 100.0 < 30) {
-                    await channel.SendMessageAsync($"The #2 pencil breaks in {wielder.Id}'s hand. The result is a sharper shard of a pencil. pog");
+                    await channel.SendMessageAsync($"The #2 pencil breaks in {wielder}'s hand. The result is a sharper shard of a pencil. pog");
                     wielder.Equiped =  new Weapon {
                         Id = "shard of a #2 pencil",
                         Description = "A slightly more scary part of a #2 pencil. Looks dangerous",
@@ -351,7 +355,7 @@ namespace DiscordMud {
                     };
                 }
             } else if (Id == "golden gun" && lost) {
-                await channel.SendMessageAsync($"Having defeated {wielder.Id} in battle, {defender.Id} now owns the golden gun.");
+                await channel.SendMessageAsync($"Having defeated {wielder} in battle, {defender} now owns the golden gun.");
                 wielder.Equiped = null;
                 defender.Inventory.Add(this);
             }

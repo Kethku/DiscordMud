@@ -71,7 +71,7 @@ namespace DiscordMud {
             defender.Challenger = ulong.Parse(attacker.Id);
             await db.StoreAsync(defender);
 
-            return $"{attacker} has challenged {defender} to a duel!";
+            return $"{attacker} has challenged <@{defender.Id}> to a duel!";
         }
 
         [Help("!accept: Accepts a duel if somebody has challenged you.")]
@@ -79,7 +79,7 @@ namespace DiscordMud {
             if (defender.Challenger != null) {
                 var attacker = await db.GetMember(defender.Challenger.Value);
 
-                await channel.SendMessageAsync($"{defender} accepts the duel from {attacker}!\n");
+                await channel.SendMessageAsync($"{defender} accepts the duel from <@{attacker.Id}>!\n");
                 var stages = Weapon.Duel(attacker.Equiped ?? Weapon.Fists, attacker.Name, defender.Equiped ?? Weapon.Fists, defender.Name);
 
                 Result result = Result.Undecided;
@@ -91,8 +91,8 @@ namespace DiscordMud {
 
                 defender.Challenger = null;
 
-                defender.Equiped?.HandlePostDuelEffects(defender, attacker, channel, result == Result.Attacker);
-                attacker.Equiped?.HandlePostDuelEffects(attacker, defender, channel, result == Result.Defender);
+                await defender.Equiped?.HandlePostDuelEffects(defender, attacker, channel, result == Result.Attacker);
+                await attacker.Equiped?.HandlePostDuelEffects(attacker, defender, channel, result == Result.Defender);
 
                 await db.StoreAsync(defender);
                 await db.StoreAsync(attacker);
@@ -101,7 +101,6 @@ namespace DiscordMud {
             }
         }
 
-        [Secret]
         [Help("!open {dubs token rank}: Opens a lootbox of the given rank. Example: !open quad")]
         public async Task Open([Author]Member author, string rankName, ISocketMessageChannel channel, MyCouchStore db) {
             var rank = Utils.DubsNameToRank(rankName);
@@ -136,7 +135,6 @@ namespace DiscordMud {
             }
         }
 
-        [Secret]
         [Help("!equip {weapon name}: Equips the weapon with the given name from your inventory.")]
         public async Task<string> Equip([Author]Member author, [Rest]string weaponName, MyCouchStore db) {
             var weapon = author.Inventory.FirstOrDefault(possibleWeapon => possibleWeapon.Id.ToLower() == weaponName.ToLower().Trim());
@@ -150,7 +148,6 @@ namespace DiscordMud {
             return $"You equip {weapon}.";
         }
 
-        [Secret]
         [Help("!unequip: Unequips your currently held weapon and puts it back in your inventory.")]
         public async Task<string> Unequip([Author]Member author, MyCouchStore db) {
             var weapon = author.Equiped;
@@ -179,7 +176,6 @@ namespace DiscordMud {
             }
         }
 
-        [Secret]
         [Help("!inspect: Inspects your currently equiped item.")]
         public string Inspect([Author]Member author) {
             if (author.Equiped == null) {
@@ -189,7 +185,6 @@ namespace DiscordMud {
             }
         }
 
-        [Secret]
         [Help("!drop: Drops your currently equiped item.")]
         public async Task<string> Drop([Author]Member author, MyCouchStore db) {
             if (author.Equiped == null) {
@@ -228,15 +223,15 @@ namespace DiscordMud {
         }
 
         public static async Task<bool> AddDubsToken(ulong id, int rank) {
-            using (var db = Utils.OpenDatabase(Constants.DATABASE_NAME)) {
-                if (await db.ExistsAsync(id.ToString())) {
-                    var member = await db.GetMember(id.ToString());
+            try {
+                using (var db = Utils.OpenDatabase(Constants.DATABASE_NAME)) {
+                    var member = await db.GetMember(id);
                     member.Wallet.Dubs[rank]++;
                     await db.StoreAsync(member);
                     return true;
-                } else {
-                    return false;
                 }
+            } catch (Exception) {
+                return false;
             }
         }
 

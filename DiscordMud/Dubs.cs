@@ -13,6 +13,10 @@ namespace DiscordMud {
             if (message.Author.Id == 598740888562302977) return;
             ISocketMessageChannel channel = message.Channel;
 
+            if (!(channel is SocketGuildChannel) || (channel as SocketGuildChannel).Guild.Id != 598338172958670858) {
+                return;
+            }
+
             var id = new int[9];
             for (var i = 0; i < 9; i++) {
                 id[i] = random.Next(9);
