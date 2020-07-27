@@ -41,6 +41,7 @@ namespace DiscordMud {
 
         private static Task ReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction) {
             Purge.Added(message.Id, reaction);
+            Dubs.Added(message.Id, reaction);
             return Task.CompletedTask;
         }
 

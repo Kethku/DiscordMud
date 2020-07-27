@@ -8,6 +8,15 @@ using Emoji = Discord.Emoji;
 namespace DiscordMud {
     public static class Dubs {
         private static Random random = new Random();
+        private static string[] dubsEmotes = new [] {
+            "3️⃣",
+            "4️⃣",
+            "5️⃣",
+            "6️⃣",
+            "7️⃣",
+            "8️⃣",
+            "9️⃣"
+        };
 
         public static async Task Handle(SocketUserMessage message) {
             if (message.Author.Id == 598740888562302977) return;
@@ -60,6 +69,17 @@ namespace DiscordMud {
             if (emoji != null) {
                 if (await Capitalism.AddDubsToken(message.Author.Id, rank)) {
                     await message.AddReactionAsync(emoji);
+                }
+            }
+        }
+
+        public static async void Added(ulong messageId, SocketReaction reaction) {
+            if (Array.IndexOf(dubsEmotes, reaction.Emote.Name) > -1) {
+                if (reaction.User.IsSpecified) {
+                    var message = await reaction.Channel.GetMessageAsync(messageId) as IUserMessage;
+                    if (message != null) {
+                        await message.RemoveReactionsAsync(reaction.User.Value, new [] { reaction.Emote });
+                    }
                 }
             }
         }

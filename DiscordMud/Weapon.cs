@@ -192,7 +192,7 @@ namespace DiscordMud {
                     double baseDamage = random.NextDouble() * (MaxDamage - MinDamage) + MinDamage;
                     double damage = baseDamage * damageFactor;
                     string attackDescription = AttackVerbs[random.Next(AttackVerbs.Count)];
-                    return ($"{name} {attackDescription} dealing {Math.Floor(damage * 100)} damage.", damage);
+                    return ($"{name} {attackDescription} dealing {Math.Floor(damage)} damage.", damage);
                 }
             } else {
                 if (round != 3) {

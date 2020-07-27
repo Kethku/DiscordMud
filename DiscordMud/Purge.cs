@@ -30,10 +30,12 @@ namespace DiscordMud {
         }
 
         public static void Removed(ulong messageId, SocketReaction reaction) {
-            int purgeCount = 0;
-            purgeCounts.TryGetValue(messageId, out purgeCount);
-            purgeCount--;
-            purgeCounts[messageId] = purgeCount;
+            if (reaction.Emote.Name == "purge") {
+                int purgeCount = 0;
+                purgeCounts.TryGetValue(messageId, out purgeCount);
+                purgeCount--;
+                purgeCounts[messageId] = purgeCount;
+            }
         }
     }
 }

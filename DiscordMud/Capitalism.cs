@@ -4,6 +4,7 @@ using System.Text;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.ComponentModel;
 using Discord;
 using Discord.WebSocket;
 using MyCouch;
@@ -18,6 +19,8 @@ namespace DiscordMud {
         public Wallet Wallet { get; set; }
         public List<Weapon> Inventory { get; set; }
         public ulong? Challenger { get; set; }
+        [DefaultValue(false)]
+        public bool OpenChallenge { get; set; }
         public Weapon Equiped { get; set; }
 
         public Member() {}
@@ -27,6 +30,7 @@ namespace DiscordMud {
             Wallet = new Wallet();
             Inventory = new List<Weapon>();
             Challenger = null;
+            OpenChallenge = false;
             Equiped = null;
         }
 
@@ -74,31 +78,57 @@ namespace DiscordMud {
             return $"{attacker} has challenged <@{defender.Id}> to a duel!";
         }
 
+        [Help("!fightme: Issues an open challenge to any and all.")]
+        public async Task<string> FightMe([Author]Member attacker, MyCouchStore db) {
+            attacker.OpenChallenge = true;
+            await db.StoreAsync(attacker);
+
+            return $"{attacker} issues an open challenge to any and all.";
+        }
+
         [Help("!accept: Accepts a duel if somebody has challenged you.")]
         public async Task Accept([Author]Member defender, MyCouchStore db, ISocketMessageChannel channel)  {
             if (defender.Challenger != null) {
                 var attacker = await db.GetMember(defender.Challenger.Value);
-
-                await channel.SendMessageAsync($"{defender} accepts the duel from <@{attacker.Id}>!\n");
-                var stages = Weapon.Duel(attacker.Equiped ?? Weapon.Fists, attacker.Name, defender.Equiped ?? Weapon.Fists, defender.Name);
-
-                Result result = Result.Undecided;
-                foreach (var state in stages) {
-                    await channel.SendMessageAsync(state.Description);
-                    await Task.Delay(TimeSpan.FromSeconds(SECONDS_BETWEEN_DUEL_ROUNDS));
-                    result = state.Result;
-                }
-
                 defender.Challenger = null;
-
-                await defender.Equiped?.HandlePostDuelEffects(defender, attacker, channel, result == Result.Attacker);
-                await attacker.Equiped?.HandlePostDuelEffects(attacker, defender, channel, result == Result.Defender);
-
-                await db.StoreAsync(defender);
-                await db.StoreAsync(attacker);
+                await channel.SendMessageAsync($"{defender} accepts the duel from <@{attacker.Id}>!\n");
+                await ExecuteDuel(attacker, defender, db, channel);
             } else {
                 await channel.SendMessageAsync($"You don't have a current challenger. Go challenge someone to a duel.");
             }
+        }
+
+        [Help("!fight {other booty boy}: Accepts an open challenge.")]
+        public async Task Fight([Author]Member attacker, Member defender, MyCouchStore db, ISocketMessageChannel channel) {
+            if (defender.Id == attacker.Id) {
+                await channel.SendMessageAsync($"You spend a while beating yourself up. Nice.");
+                return;
+            }
+
+            if (defender.OpenChallenge) {
+                defender.OpenChallenge = false;
+                await channel.SendMessageAsync($"{attacker} accepts {defender}'s open challenge!\n");
+                await ExecuteDuel(attacker, defender, db, channel);
+            } else {
+                await channel.SendMessageAsync($"That person hasn't issued an open challenge.");
+            }
+        }
+
+        private static async Task ExecuteDuel(Member attacker, Member defender, MyCouchStore db, ISocketMessageChannel channel) {
+            var stages = Weapon.Duel(attacker.Equiped ?? Weapon.Fists, attacker.Name, defender.Equiped ?? Weapon.Fists, defender.Name);
+
+            Result result = Result.Undecided;
+            foreach (var state in stages) {
+                await channel.SendMessageAsync(state.Description);
+                await Task.Delay(TimeSpan.FromSeconds(SECONDS_BETWEEN_DUEL_ROUNDS));
+                result = state.Result;
+            }
+
+            await defender.Equiped?.HandlePostDuelEffects(defender, attacker, channel, result == Result.Attacker);
+            await attacker.Equiped?.HandlePostDuelEffects(attacker, defender, channel, result == Result.Defender);
+
+            await db.StoreAsync(defender);
+            await db.StoreAsync(attacker);
         }
 
         [Help("!open {dubs token rank}: Opens a lootbox of the given rank. Example: !open quad")]
