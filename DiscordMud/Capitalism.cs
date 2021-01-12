@@ -17,21 +17,13 @@ namespace DiscordMud {
         public string Id { get; set; }
         public string Name { get; set; }
         public Wallet Wallet { get; set; }
-        public List<Weapon> Inventory { get; set; }
-        public ulong? Challenger { get; set; }
-        [DefaultValue(false)]
-        public bool OpenChallenge { get; set; }
-        public Weapon Equiped { get; set; }
 
         public Member() {}
 
-        public Member(string name) { 
-            Id = name.ToLower();
+        public Member(string id, string name) { 
+            Id = id;
+            Name = name;
             Wallet = new Wallet();
-            Inventory = new List<Weapon>();
-            Challenger = null;
-            OpenChallenge = false;
-            Equiped = null;
         }
 
         public override string ToString() {
@@ -41,189 +33,53 @@ namespace DiscordMud {
 
     public class Capitalism : CommandHandler {
         private static readonly Wallet ALLOWANCE = new Wallet { BBP = 100 };
-        const int SECONDS_BETWEEN_DUEL_ROUNDS = 5;
 
         [Help("!balance: Prints your current wallet balance.")]
         public string Balance([Author]Member author) {
             return $"You have {author.Wallet}";
         }
 
-        [Help("!give {reciever} {amount}: Gives the given person an amount of money. Example: !give keith 2 bbp 3 trips 1 quad Example: !give keith #2 pencil")]
+        [Help("!give {reciever} {amount}: Gives the given person an amount of money. Example: !give keith 2 bbp 3 trips 1 quad")]
         public async Task<string> Give([Author]Member author, Member reciever, [Rest]string amountText, MyCouchStore db) {
             if (author.Id == reciever.Id) throw new CommandFailedException("You can't give to yourself.");
 
-            var gift = author.Inventory.FirstOrDefault(possibleGift => possibleGift.Id.ToLower() == amountText.ToLower().Trim());
-            if (gift != null) {
-                reciever.Inventory.Add(gift);
-                author.Inventory.Remove(gift);
-                await db.StoreAsync(author);
-                await db.StoreAsync(reciever);
-                return $"{author} has given {reciever} {gift.Id.IndefiniteArticle()} {gift.Id}";
-            } else {
-                var amount = new Wallet(amountText);
-                author.Wallet.Subtract(amount);
-                reciever.Wallet.Add(amount);
-                await db.StoreAsync(author);
-                await db.StoreAsync(reciever);
-                return $"{author} has given {reciever} {amount.ToString()}.";
-            }
-        }
-
-        [Help("!challenge: Challenges somebody to a duel.")]
-        public async Task<string> Challenge([Author]Member attacker, Member defender, MyCouchStore db) {
-            if (attacker.Id == defender.Id) return "You can't challenge yourself.";
-            defender.Challenger = ulong.Parse(attacker.Id);
-            await db.StoreAsync(defender);
-
-            return $"{attacker} has challenged <@{defender.Id}> to a duel!";
-        }
-
-        [Help("!fightme: Issues an open challenge to any and all.")]
-        public async Task<string> FightMe([Author]Member attacker, MyCouchStore db) {
-            attacker.OpenChallenge = true;
-            await db.StoreAsync(attacker);
-
-            return $"{attacker} issues an open challenge to any and all.";
-        }
-
-        [Help("!accept: Accepts a duel if somebody has challenged you.")]
-        public async Task Accept([Author]Member defender, MyCouchStore db, ISocketMessageChannel channel)  {
-            if (defender.Challenger != null) {
-                var attacker = await db.GetMember(defender.Challenger.Value);
-                defender.Challenger = null;
-                await channel.SendMessageAsync($"{defender} accepts the duel from <@{attacker.Id}>!\n");
-                await ExecuteDuel(attacker, defender, db, channel);
-            } else {
-                await channel.SendMessageAsync($"You don't have a current challenger. Go challenge someone to a duel.");
-            }
-        }
-
-        [Help("!fight {other booty boy}: Accepts an open challenge.")]
-        public async Task Fight([Author]Member attacker, Member defender, MyCouchStore db, ISocketMessageChannel channel) {
-            if (defender.Id == attacker.Id) {
-                await channel.SendMessageAsync($"You spend a while beating yourself up. Nice.");
-                return;
-            }
-
-            if (defender.OpenChallenge) {
-                defender.OpenChallenge = false;
-                await channel.SendMessageAsync($"{attacker} accepts {defender}'s open challenge!\n");
-                await ExecuteDuel(attacker, defender, db, channel);
-            } else {
-                await channel.SendMessageAsync($"That person hasn't issued an open challenge.");
-            }
-        }
-
-        private static async Task ExecuteDuel(Member attacker, Member defender, MyCouchStore db, ISocketMessageChannel channel) {
-            var stages = Weapon.Duel(attacker.Equiped ?? Weapon.Fists, attacker.Name, defender.Equiped ?? Weapon.Fists, defender.Name);
-
-            Result result = Result.Undecided;
-            foreach (var state in stages) {
-                await channel.SendMessageAsync(state.Description);
-                await Task.Delay(TimeSpan.FromSeconds(SECONDS_BETWEEN_DUEL_ROUNDS));
-                result = state.Result;
-            }
-
-            await defender.Equiped?.HandlePostDuelEffects(defender, attacker, channel, result == Result.Attacker);
-            await attacker.Equiped?.HandlePostDuelEffects(attacker, defender, channel, result == Result.Defender);
-
-            await db.StoreAsync(defender);
-            await db.StoreAsync(attacker);
-        }
-
-        [Help("!open {dubs token rank}: Opens a lootbox of the given rank. Example: !open quad")]
-        public async Task Open([Author]Member author, string rankName, ISocketMessageChannel channel, MyCouchStore db) {
-            var rank = Utils.DubsNameToRank(rankName);
-            rankName = Utils.RankToDubsName(rank);
-            if (rankName == "bbp") {
-                throw new CommandFailedException("You can only open loot boxes for trips or higher.");
-            }
-
-            if (author.Wallet.Dubs[rank] <= 0) {
-                throw new CommandFailedException("You don't have enough tokens for that.");
-            }
-
-            using (var lootDB = Utils.OpenDatabase($"{rankName}{Constants.LOOT_DATABASE_SUFFIX}")) {
-                var possibleLoot = (await lootDB.GetAllAsync<Weapon>()).ToList();
-                Random random = new Random();
-
-                if (possibleLoot.Count == 0) {
-                    await channel.SendMessageAsync($"Unfortunately that level of loot isn't available yet. Go bug Keith about it.");
-                    return;
-                }
-
-                var loot = possibleLoot[random.Next(possibleLoot.Count)];
-                await channel.SendMessageAsync($"Opening loot box!");
-                for (int i = 3; i > 0; i--) {
-                    await channel.SendMessageAsync($"{i}...");
-                    await Task.Delay(TimeSpan.FromSeconds(1));
-                }
-                await channel.SendMessageAsync($"You got {loot}.");
-                author.Wallet.Dubs[rank]--;
-                author.Inventory.Add(loot);
-                await db.StoreAsync(author);
-            }
-        }
-
-        [Help("!equip {weapon name}: Equips the weapon with the given name from your inventory.")]
-        public async Task<string> Equip([Author]Member author, [Rest]string weaponName, MyCouchStore db) {
-            var weapon = author.Inventory.FirstOrDefault(possibleWeapon => possibleWeapon.Id.ToLower() == weaponName.ToLower().Trim());
-            if (weapon == null) throw new CommandFailedException("You don't have a weapon like that.");
-            if (author.Equiped != null) {
-                author.Inventory.Add(author.Equiped);
-            }
-            author.Equiped = weapon;
-            author.Inventory.Remove(weapon);
+            var amount = new Wallet(amountText);
+            author.Wallet.Subtract(amount);
+            reciever.Wallet.Add(amount);
             await db.StoreAsync(author);
-            return $"You equip {weapon}.";
+            await db.StoreAsync(reciever);
+            return $"{author} has given {reciever} {amount.ToString()}.";
         }
 
-        [Help("!unequip: Unequips your currently held weapon and puts it back in your inventory.")]
-        public async Task<string> Unequip([Author]Member author, MyCouchStore db) {
-            var weapon = author.Equiped;
-
-            if (weapon != null) {
-                author.Equiped = null;
-                author.Inventory.Add(weapon);
-                await db.StoreAsync(author);
-                return $"You unequip {weapon}";
-            } else {
-                return $"You don't have anything equiped...";
-            }
-        }
-
-        [Help("!inventory: Lists your the things in your inventory.")]
-        public string Inventory([Author]Member author) {
-            if (author.Inventory.Count == 0) {
-                return "You don't have anything in your inventory.";
-            } else {
-                var sb = new StringBuilder();
-                sb.AppendLine("You have:");
-                foreach (var weapon in author.Inventory) {
-                    sb.AppendLine($"    {weapon}");
+        [Help("!spam {youtube url}: Spams a youtube video's audio to the assembly voice channel.")]
+        public async Task<string> Spam([Author]Member author, MyCouchStore db, ISocketMessageChannel channel, SocketUserMessage message, [Rest]string youtubeUrl) {
+            if (message.Author is SocketGuildUser discordAuthor && discordAuthor.VoiceChannel != null) {
+                Spammable spammable;
+                try {
+                    spammable = await Spammable.Create(youtubeUrl);
+                } catch (Exception exception) {
+                    Console.WriteLine(exception);
+                    return "Could not download youtube video. Maybe try a different video?";
                 }
-                return sb.ToString();
-            }
-        }
 
-        [Help("!inspect: Inspects your currently equiped item.")]
-        public string Inspect([Author]Member author) {
-            if (author.Equiped == null) {
-                return Weapon.Fists.Description;
-            } else {
-                return author.Equiped.Description;
-            }
-        }
+                var bbpCost = spammable.Length * 100 / 60;
+                var walletCost = new Wallet(bbpCost + " BBP");
+                author.Wallet.Subtract(walletCost);
 
-        [Help("!drop: Drops your currently equiped item.")]
-        public async Task<string> Drop([Author]Member author, MyCouchStore db) {
-            if (author.Equiped == null) {
-                throw new CommandFailedException("You can't drop something if you don't have anything equiped.");
+                try {
+                    await channel.SendMessageAsync($"{author.Name} has triggered a mic spam for {walletCost}.");
+                    var client = await discordAuthor.VoiceChannel.ConnectAsync();
+                    if (!await spammable.Spam(client)) {
+                        return "Could not play youtube video in voice channel. Maybe try a different video.";
+                    } else {
+                        await db.StoreAsync(author);
+                        return null;
+                    }
+                } finally {
+                    await discordAuthor.VoiceChannel.DisconnectAsync();
+                }
             } else {
-                var droppedItem = author.Equiped;
-                author.Equiped = null;
-                await db.StoreAsync(author) ;
-                return $"You drop the {droppedItem.Id} off the edge of a cliff. Goodbye forever.";
+                return "Could not connect to voice channel. Are you in a call?";
             }
         }
 
@@ -245,11 +101,11 @@ namespace DiscordMud {
             return $"You gave up {amount}.";
         }
 
-        [GeneralHandler]
-        public async Task Handle([Author]Member author, SocketUserMessage message) {
-            if (author.Equiped != null) {
-                await author.Equiped.HandleGeneralMessageEffects(message);
-            }
+        [Secret]
+        [Help("!onboard {id} {name}: Creates a new booty boy.")]
+        public async Task<string> Onboard(string id, string name, MyCouchStore db) {
+            await db.StoreAsync(new Member(id, name));
+            return $"Created new booty boy with id {id} and name {name}";
         }
 
         public static async Task<bool> AddDubsToken(ulong id, int rank) {
@@ -282,11 +138,11 @@ namespace DiscordMud {
                     var members = await db.GetAllAsync<Member>();
 
                     foreach (var member in members) {
-                        member.Wallet.Add(ALLOWANCE);
+                        member.Wallet.SubtractToZero(ALLOWANCE);
                         await db.StoreAsync(member);
                     }
 
-                    await channel.SendMessageAsync($"Morning all. Everyone has been given {ALLOWANCE}. Spend it wisely");
+                    await channel.SendMessageAsync($"Morning all. Everyone has been taxed {ALLOWANCE} for construction fees.");
                 }
             }
         }

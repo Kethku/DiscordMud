@@ -125,13 +125,15 @@ namespace DiscordMud {
                     }
 
                     var result = command.Invoke(this, parameters.ToArray());
-                    if (result is Task<string>) {
-                        var resultText = await (result as Task<string>);
+                    if (result is Task<string> resultTaskText) {
+                        var resultText = await resultTaskText;
+                        if (resultText != null) {
+                            await channel.SendMessageAsync(resultText);
+                        }
+                    } else if (result is Task resultTask) {
+                        await resultTask;
+                    } else if (result is string resultText && resultText != null) {
                         await channel.SendMessageAsync(resultText);
-                    } else if (result is Task) {
-                        await (result as Task);
-                    } else if (result is string) {
-                        await channel.SendMessageAsync(result as string);
                     }
 
                     if (confirm) await message.ConfirmReact();

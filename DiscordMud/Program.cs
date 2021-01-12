@@ -20,7 +20,11 @@ namespace DiscordMud {
             await client.LoginAsync(TokenType.Bot, token);
             await client.StartAsync();
 
-            await Capitalism.ManageAllowances(client);
+            Task[] longRunningTasks = {
+                Capitalism.ManageAllowances(client),
+            };
+
+            await Task.WhenAll(longRunningTasks);
         }
 
         private static async Task MessageRecieved(SocketMessage message) {

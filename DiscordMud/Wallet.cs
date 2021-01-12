@@ -75,6 +75,15 @@ namespace DiscordMud {
             }
         }
 
+        public void SubtractToZero(Wallet amountToSubtract) {
+            BBP -= amountToSubtract.BBP;
+            if (BBP < 0) BBP = 0;
+            for (int i = 3; i <= 9; i++) {
+                Dubs[i] -= amountToSubtract.Dubs[i];
+                if (Dubs[i] < 0) Dubs[i] = 0;
+            }
+        }
+
         public override string ToString() {
             bool any = false;
             var sb = new StringBuilder();

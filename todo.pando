@@ -2,7 +2,7 @@ x Setup Database
 x Define User Document Shape [ Setup Database ]
 - Butler [ Status Reactions ]
 - Voice Channel Management [ Username Parsing ]
-- Mic Spam [ Status Reactions ]
+x Mic Spam [ Status Reactions ]
 - Message Board [ Status Reactions ]
 - Website Interface [ Balance ]
 x Morning Allowance [ Define User Document Shape ]
@@ -15,4 +15,4 @@ x Command Systems [ Define User Document Shape ]
 x Dubs Tokens [ Define User Document Shape ]
 x Username Parsing [ Command Systems ]
 - Lurk no show penalty [ Voice Channel Management ]
-- Cant Dub Yourself
+x Cant Dub Yourself

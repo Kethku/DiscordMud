@@ -8,14 +8,22 @@
   <ItemGroup>
     <PackageReference Include="Discord.Net" Version="2.1.1" />
     <PackageReference Include="MyCouch" Version="7.2.1" />
+    <PackageReference Include="Topshelf" Version="4.2.1" />
+    <PackageReference Include="VideoLibrary" Version="3.0.6" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="Discord.token">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-
     <None Update="Password">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="libsodium.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="opus.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

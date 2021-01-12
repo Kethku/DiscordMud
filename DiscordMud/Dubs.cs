@@ -75,7 +75,7 @@ namespace DiscordMud {
 
         public static async void Added(ulong messageId, SocketReaction reaction) {
             if (Array.IndexOf(dubsEmotes, reaction.Emote.Name) > -1) {
-                if (reaction.User.IsSpecified) {
+                if (reaction.User.IsSpecified && reaction.User.Value.Id != 598740888562302977) {
                     var message = await reaction.Channel.GetMessageAsync(messageId) as IUserMessage;
                     if (message != null) {
                         await message.RemoveReactionsAsync(reaction.User.Value, new [] { reaction.Emote });
